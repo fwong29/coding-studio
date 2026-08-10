@@ -1,8 +1,78 @@
 <!doctype html>
-<html>
-  <head><meta charset="utf-8"><title>Hello Studio</title></head>
-  <body>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hello Studio</title>
+  <style>
+    :root {
+      --bg: #111827;
+      --panel: #1f2937;
+      --text: #e5e7eb;
+      --text-soft: #a7f3d0;
+      --accent: #34d399;
+      --shadow: rgba(0, 0, 0, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: radial-gradient(circle at top, #1f6f5f, var(--bg));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 720px;
+      width: 100%;
+      background: rgba(31, 41, 55, 0.88);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px;
+      padding: 56px 48px;
+      text-align: center;
+      box-shadow: 0 18px 48px var(--shadow);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: clamp(2.4rem, 5vw, 4rem);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+    }
+
+    p {
+      margin: 0;
+      font-size: 1.12rem;
+      color: var(--text-soft);
+    }
+
+    .badge {
+      display: inline-block;
+      margin-bottom: 24px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.3);
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #d1fae5;
+      background: rgba(52, 211, 153, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="badge">Coding Studio</div>
     <h1>Hello, Studio.</h1>
-    <p>If you can read this, your workstation is alive.</p>
-  </body>
+    <p>Welcome to your workspace. The site is live and ready for the next build.</p>
+  </main>
+</body>
 </html>
