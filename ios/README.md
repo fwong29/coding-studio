@@ -33,7 +33,7 @@ where it asks and the photo takes itself.
 
 ## Building it
 
-You need a Mac with Xcode 16 or newer, and an iPhone. **The simulator is no
+You need a Mac with Xcode 13 or newer, and an iPhone. **The simulator is no
 use here** — there is no camera and no motion sensor, so there is nothing to
 coach.
 
@@ -52,15 +52,19 @@ open ios/Framewise.xcodeproj
 On first launch iOS will ask to trust the developer certificate: **Settings →
 General → VPN & Device Management → your Apple ID → Trust**.
 
-### If the project won't open
+The project is in the classic `objectVersion 56` format, so it opens in
+Xcode 13 and later rather than requiring Xcode 16.
 
-The checked-in project file is hand-written and relies on Xcode 16's
-synchronized folder groups. On an older Xcode, regenerate it:
+That format lists every file explicitly, so the list is a snapshot. After
+adding, renaming or deleting a source file, regenerate it:
 
 ```sh
-brew install xcodegen
-cd ios && xcodegen generate
+python3 ios/tools/generate_project.py
 ```
+
+The generator also holds the build settings, so change the deployment target
+or bundle identifier there rather than in Xcode if you want it to survive the
+next regeneration.
 
 ## Permissions, and what they're for
 
