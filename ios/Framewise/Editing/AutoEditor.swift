@@ -182,16 +182,22 @@ final class AutoEditor {
               let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any]
         else { return nil }
 
-        if let ratings = exif[kCGImagePropertyExifISOSpeedRatings as String] as? [NSNumber],
-           let first = ratings.first {
-            return CGFloat(first.doubleValue)
-        }
-        if let single = exif[kCGImagePropertyExifISOSpeedRatings as String] as? NSNumber {
-            return CGFloat(single.doubleValue)
-        }
-        // Some devices report only the newer photographic sensitivity key.
-        if let sensitivity = exif[kCGImagePropertyExifPhotographicSensitivity as String] as? NSNumber {
-            return CGFloat(sensitivity.doubleValue)
+        // Looked up by raw EXIF tag name rather than through ImageIO's
+        // constants. The constants exist for some of these tags and not
+        // others, and the names differ across SDK versions; the tag names
+        // themselves are fixed by the EXIF specification, which is what the
+        // constants resolve to anyway.
+        //
+        // ISOSpeedRatings is what iPhone captures carry. The other two are
+        // the EXIF 2.3 replacements, read as a fallback for files from
+        // elsewhere.
+        for tag in ["ISOSpeedRatings", "PhotographicSensitivity", "ISOSpeed"] {
+            if let values = exif[tag] as? [NSNumber], let first = values.first {
+                return CGFloat(first.doubleValue)
+            }
+            if let value = exif[tag] as? NSNumber {
+                return CGFloat(value.doubleValue)
+            }
         }
         return nil
     }
