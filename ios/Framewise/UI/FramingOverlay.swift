@@ -24,13 +24,18 @@ struct FramingOverlay: View {
                 if showHorizon {
                     horizonIndicator(mapper: mapper, size: proxy.size)
                 }
-                if let bounds = state.subjectBounds {
+                if !state.crop.isFullFrame {
+                    cropBox(mapper.rect(state.crop.rect), in: proxy.size)
+                } else if let bounds = state.subjectBounds {
                     subjectBox(mapper.rect(bounds))
                 }
                 aimMarker(mapper: mapper)
             }
             .animation(.easeOut(duration: 0.12), value: state.aimCurrent)
             .animation(.easeInOut(duration: 0.25), value: state.aimAligned)
+            // Slow and soft: the box is the most prominent thing on screen, so
+            // any twitch in it reads as the app being unsure of itself.
+            .animation(.easeInOut(duration: 0.45), value: state.crop.rect)
         }
         .allowsHitTesting(false)
     }
@@ -96,6 +101,42 @@ struct FramingOverlay: View {
             }
             .position(x: size.width / 2, y: size.height / 2)
             .opacity(isLevel && state.levelErrorDegrees < 0.4 ? 0.35 : 1)
+        }
+    }
+
+    // MARK: - Suggested crop
+
+    /// The photo inside the photo: everything outside the box is dimmed, so
+    /// the rectangle reads as the frame you'd actually keep rather than as
+    /// one more piece of overlay furniture.
+    private func cropBox(_ rect: CGRect, in size: CGSize) -> some View {
+        ZStack {
+            // Dim the surround by filling the whole view and punching the
+            // crop out of it with the even-odd rule.
+            Path { path in
+                path.addRect(CGRect(origin: .zero, size: size))
+                path.addRoundedRect(in: rect, cornerSize: CGSize(width: 10, height: 10))
+            }
+            .fill(Color.black.opacity(0.34), style: FillStyle(eoFill: true))
+
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.yellow, lineWidth: 2.5)
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+
+            if let label = state.crop.label {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.yellow, in: Capsule())
+                    .fixedSize()
+                    // Sits under the box, or above it when the box runs close
+                    // to the bottom of the screen.
+                    .position(x: rect.midX,
+                              y: rect.maxY + 16 > size.height - 24 ? rect.minY - 16 : rect.maxY + 16)
+            }
         }
     }
 

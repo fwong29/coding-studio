@@ -17,13 +17,14 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Crop to the suggested box", isOn: $settings.cropToSuggestion)
                     Toggle("Fire the shutter automatically", isOn: $settings.autoShutter)
                     Toggle("Speak the directions", isOn: $settings.spokenDirections)
                     Toggle("Haptic feedback", isOn: $settings.hapticFeedback)
                 } header: {
                     Text("Shooting")
                 } footer: {
-                    Text("With auto-shutter on, the photo is taken the moment the framing locks and you've held it steady for a beat.")
+                    Text("The yellow box marks the better photo inside what you're pointing at. With cropping on, pressing the shutter gives you exactly that box; turn it off and you keep the full frame with the box as guidance only.\n\nAuto-shutter fires by itself once the framing locks. It's off by default — knowing when the moment is right is the one decision worth keeping.")
                 }
 
                 Section {

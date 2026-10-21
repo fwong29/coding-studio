@@ -54,6 +54,7 @@ final class AutoEditor {
     func process(data: Data,
                  signals: SceneSignals,
                  lightPhase: LightPhase,
+                 crop: CGRect?,
                  settings: EditSettings) -> EditedCapture {
 
         guard var image = CIImage(data: data, options: [.applyOrientationProperty: true]) else {
@@ -100,7 +101,31 @@ final class AutoEditor {
             }
         }
 
-        // 2. Optionally let Apple's own auto-adjustment have first pass.
+        // 2. Crop to the suggested frame, before any measurement, so the
+        //    exposure and colour decisions are made on the photo you are
+        //    actually keeping rather than on the parts being thrown away.
+        //    Deliberately after straightening: the rotation changes the
+        //    extent, and the crop is expressed relative to the final frame.
+        if let crop, crop.width < 0.99 || crop.height < 0.99 {
+            let extent = image.extent
+            // Frame space is top-left origin with y down; Core Image is
+            // bottom-left with y up, so the rect flips vertically.
+            let pixels = CGRect(
+                x: extent.minX + crop.minX * extent.width,
+                y: extent.minY + (1 - crop.maxY) * extent.height,
+                width: crop.width * extent.width,
+                height: crop.height * extent.height)
+            let cropped = image.cropped(to: pixels.intersection(extent))
+            if cropped.extent.width > 64, cropped.extent.height > 64 {
+                // Re-origin so downstream filters see a clean extent.
+                image = cropped.transformed(by: CGAffineTransform(
+                    translationX: -cropped.extent.origin.x,
+                    y: -cropped.extent.origin.y))
+                recipe.cropped = true
+            }
+        }
+
+        // 3. Optionally let Apple's own auto-adjustment have first pass.
         if settings.useAppleAutoEnhance {
             let filters = image.autoAdjustmentFilters(options: [.enhance: true, .redEye: true])
             for filter in filters {
@@ -110,17 +135,17 @@ final class AutoEditor {
             recipe.appleAutoEnhanceApplied = true
         }
 
-        // 3. Measure the image we are actually going to edit.
+        // 4. Measure the image we are actually going to edit.
         let stats = ToneAnalyzer.analyze(image: image, context: context)
 
-        // 4. Turn measurements into numbers.
+        // 5. Turn measurements into numbers.
         recipe = decide(recipe: recipe,
                         stats: stats,
                         preset: preset,
                         signals: signals,
                         lightPhase: lightPhase)
 
-        // 5. Apply.
+        // 6. Apply.
         image = apply(recipe: recipe, to: image, preset: preset)
 
         let after = thumbnail(from: image)

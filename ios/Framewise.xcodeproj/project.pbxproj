@@ -12,12 +12,14 @@
 		46EE3BA111FA8DAD434AF19D /* MotionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BC95D79258F580705A21A /* MotionMonitor.swift */; };
 		894448A4373F4B4AE4B32541 /* SceneClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4600505C94825AF5D4A2B5 /* SceneClassifier.swift */; };
 		3D07F7A1ECD864DD11759FC9 /* SceneSignals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C82AE1E8AFA2C6174BAF8A3 /* SceneSignals.swift */; };
+		DE52B5BC450392BB36C84369 /* SignalSmoother.swift in Sources */ = {isa = PBXBuildFile; fileRef = 405F295281B3939E87FD7631 /* SignalSmoother.swift */; };
 		3B024334203066EE8FA1D539 /* ToneAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F39ACF6A329C4E34661694D /* ToneAnalyzer.swift */; };
 		A3626A89A333AE16949EE141 /* CameraController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C9F2F19A0D4790A69581557 /* CameraController.swift */; };
 		725881C4BF980200D48308E7 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 573D35613F12275CE663B2AA /* CameraPreviewView.swift */; };
 		660633EC55D6781C456FF175 /* PhotoCaptureProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73B172A28EE3B63D92E00B5 /* PhotoCaptureProcessor.swift */; };
 		BA124B3993C594B4D5BF04CC /* AngleAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E2FF389D25739823F56E50 /* AngleAdvisor.swift */; };
 		58E1B5518E366A5A164A082E /* CompositionCoach.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB5CE63636ACF2763FBE680 /* CompositionCoach.swift */; };
+		D68B340EBF67897E567E5DB8 /* CropAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAD6DB39B77144ABB573A7B9 /* CropAdvisor.swift */; };
 		08223856A259265127870CB2 /* Directive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D4D9CD943FA763450AC1005 /* Directive.swift */; };
 		5D9D6C9D7A7B928D9D744F22 /* DirectiveStabilizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE9F91D1B8B304BA568D311 /* DirectiveStabilizer.swift */; };
 		5C23071F9AD3950AF40DCB94 /* FramingTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03C99F5D150F273653115BF9 /* FramingTarget.swift */; };
@@ -51,12 +53,14 @@
 		766BC95D79258F580705A21A /* MotionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionMonitor.swift; sourceTree = "<group>"; };
 		0C4600505C94825AF5D4A2B5 /* SceneClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneClassifier.swift; sourceTree = "<group>"; };
 		7C82AE1E8AFA2C6174BAF8A3 /* SceneSignals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneSignals.swift; sourceTree = "<group>"; };
+		405F295281B3939E87FD7631 /* SignalSmoother.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalSmoother.swift; sourceTree = "<group>"; };
 		2F39ACF6A329C4E34661694D /* ToneAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToneAnalyzer.swift; sourceTree = "<group>"; };
 		0C9F2F19A0D4790A69581557 /* CameraController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraController.swift; sourceTree = "<group>"; };
 		573D35613F12275CE663B2AA /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		D73B172A28EE3B63D92E00B5 /* PhotoCaptureProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoCaptureProcessor.swift; sourceTree = "<group>"; };
 		E5E2FF389D25739823F56E50 /* AngleAdvisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AngleAdvisor.swift; sourceTree = "<group>"; };
 		0DB5CE63636ACF2763FBE680 /* CompositionCoach.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionCoach.swift; sourceTree = "<group>"; };
+		EAD6DB39B77144ABB573A7B9 /* CropAdvisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CropAdvisor.swift; sourceTree = "<group>"; };
 		9D4D9CD943FA763450AC1005 /* Directive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Directive.swift; sourceTree = "<group>"; };
 		EBE9F91D1B8B304BA568D311 /* DirectiveStabilizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectiveStabilizer.swift; sourceTree = "<group>"; };
 		03C99F5D150F273653115BF9 /* FramingTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FramingTarget.swift; sourceTree = "<group>"; };
@@ -131,6 +135,7 @@
 				766BC95D79258F580705A21A /* MotionMonitor.swift */,
 				0C4600505C94825AF5D4A2B5 /* SceneClassifier.swift */,
 				7C82AE1E8AFA2C6174BAF8A3 /* SceneSignals.swift */,
+				405F295281B3939E87FD7631 /* SignalSmoother.swift */,
 				2F39ACF6A329C4E34661694D /* ToneAnalyzer.swift */,
 			);
 			path = Analysis;
@@ -151,6 +156,7 @@
 			children = (
 				E5E2FF389D25739823F56E50 /* AngleAdvisor.swift */,
 				0DB5CE63636ACF2763FBE680 /* CompositionCoach.swift */,
+				EAD6DB39B77144ABB573A7B9 /* CropAdvisor.swift */,
 				9D4D9CD943FA763450AC1005 /* Directive.swift */,
 				EBE9F91D1B8B304BA568D311 /* DirectiveStabilizer.swift */,
 				03C99F5D150F273653115BF9 /* FramingTarget.swift */,
@@ -278,12 +284,14 @@
 				46EE3BA111FA8DAD434AF19D /* MotionMonitor.swift in Sources */,
 				894448A4373F4B4AE4B32541 /* SceneClassifier.swift in Sources */,
 				3D07F7A1ECD864DD11759FC9 /* SceneSignals.swift in Sources */,
+				DE52B5BC450392BB36C84369 /* SignalSmoother.swift in Sources */,
 				3B024334203066EE8FA1D539 /* ToneAnalyzer.swift in Sources */,
 				A3626A89A333AE16949EE141 /* CameraController.swift in Sources */,
 				725881C4BF980200D48308E7 /* CameraPreviewView.swift in Sources */,
 				660633EC55D6781C456FF175 /* PhotoCaptureProcessor.swift in Sources */,
 				BA124B3993C594B4D5BF04CC /* AngleAdvisor.swift in Sources */,
 				58E1B5518E366A5A164A082E /* CompositionCoach.swift in Sources */,
+				D68B340EBF67897E567E5DB8 /* CropAdvisor.swift in Sources */,
 				08223856A259265127870CB2 /* Directive.swift in Sources */,
 				5D9D6C9D7A7B928D9D744F22 /* DirectiveStabilizer.swift in Sources */,
 				5C23071F9AD3950AF40DCB94 /* FramingTarget.swift in Sources */,

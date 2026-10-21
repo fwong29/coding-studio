@@ -10,6 +10,8 @@ import Foundation
 /// in `DirectiveStabilizer`, one layer up.
 struct CompositionCoach {
 
+    private let cropAdvisor = CropAdvisor()
+
     func evaluate(signals: SceneSignals,
                   target: FramingTarget,
                   verticalFOVDegrees: CGFloat) -> CoachingState {
@@ -83,6 +85,7 @@ struct CompositionCoach {
         }
 
         state.checks = checks
+        state.crop = cropAdvisor.suggest(signals: signals, target: target)
 
         // Readiness is the weighted average of every rule.
         let totalWeight = checks.reduce(0) { $0 + $1.weight }

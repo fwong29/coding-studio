@@ -64,6 +64,7 @@ struct CameraScreen: View {
         }
         // Keep the controller in step with preference changes.
         .onChange(of: settings.autoShutter) { _, _ in camera.applySettings(settings) }
+        .onChange(of: settings.cropToSuggestion) { _, _ in camera.applySettings(settings) }
         .onChange(of: settings.spokenDirections) { _, _ in camera.applySettings(settings) }
         .onChange(of: settings.hapticFeedback) { _, _ in camera.applySettings(settings) }
         .onChange(of: settings.autoEdit) { _, _ in camera.applySettings(settings) }

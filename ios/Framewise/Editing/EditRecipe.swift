@@ -37,10 +37,13 @@ struct EditRecipe {
 
     var sceneKind: SceneKind = .unknown
     var appleAutoEnhanceApplied = false
+    /// True when the photo was cropped to the suggested frame.
+    var cropped = false
 
     /// Plain-language summary for the review sheet.
     var summary: [String] {
         var lines: [String] = []
+        if cropped { lines.append("Cropped to the suggested frame") }
         if abs(straightenDegrees) > 0.05 {
             lines.append(String(format: "Straightened %.1f°", abs(Double(straightenDegrees))))
         }

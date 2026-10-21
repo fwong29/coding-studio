@@ -12,7 +12,13 @@ final class AppSettings: ObservableObject {
 
     private let defaults: UserDefaults
 
+    /// Off by default. Having the shutter fire on its own is startling when
+    /// you are still deciding, and it takes the one decision that is genuinely
+    /// yours — when the moment is right — away from you.
     @Published var autoShutter: Bool { didSet { persist(autoShutter, Keys.autoShutter) } }
+
+    /// Crop captures to the suggested box.
+    @Published var cropToSuggestion: Bool { didSet { persist(cropToSuggestion, Keys.cropToSuggestion) } }
     @Published var spokenDirections: Bool { didSet { persist(spokenDirections, Keys.spokenDirections) } }
     @Published var keepOriginal: Bool { didSet { persist(keepOriginal, Keys.keepOriginal) } }
     @Published var autoEdit: Bool { didSet { persist(autoEdit, Keys.autoEdit) } }
@@ -58,7 +64,8 @@ final class AppSettings: ObservableObject {
         func bool(_ key: String, _ fallback: Bool) -> Bool {
             store.object(forKey: key) as? Bool ?? fallback
         }
-        autoShutter = bool(Keys.autoShutter, true)
+        autoShutter = bool(Keys.autoShutter, false)
+        cropToSuggestion = bool(Keys.cropToSuggestion, true)
         spokenDirections = bool(Keys.spokenDirections, false)
         keepOriginal = bool(Keys.keepOriginal, false)
         autoEdit = bool(Keys.autoEdit, true)
@@ -82,6 +89,7 @@ final class AppSettings: ObservableObject {
 
     enum Keys {
         static let autoShutter = "autoShutter"
+        static let cropToSuggestion = "cropToSuggestion"
         static let spokenDirections = "spokenDirections"
         static let keepOriginal = "keepOriginal"
         static let autoEdit = "autoEdit"

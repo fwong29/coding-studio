@@ -42,6 +42,8 @@ final class CameraController: NSObject, ObservableObject {
 
     private let analyzer = FrameAnalyzer()
     private let coach = CompositionCoach()
+    /// Damps Vision's frame-to-frame wobble before anything is shown.
+    private var smoother = SignalSmoother()
     private let advisor = AngleAdvisor()
     private let stabilizer = DirectiveStabilizer()
     private let editor = AutoEditor()
@@ -55,6 +57,9 @@ final class CameraController: NSObject, ObservableObject {
 
     /// Most recent analysis, handed to the editor at capture time.
     private var latestSignals = SceneSignals()
+    /// The crop that was on screen when the shutter fired, so what you get is
+    /// what the box showed.
+    private var latestCrop: CGRect?
     private let signalsLock = NSLock()
 
     /// Vertical field of view of the active format, for horizon geometry.
@@ -69,8 +74,9 @@ final class CameraController: NSObject, ObservableObject {
     private var lastCaptureAt: TimeInterval = 0
     private var wasReady = false
 
-    var autoShutterEnabled = true
+    var autoShutterEnabled = false
     var hapticsEnabled = true
+    private var cropToSuggestion = true
     private var editSettings = EditSettings(autoEdit: true,
                                             autoStraighten: true,
                                             keepOriginal: false,
@@ -104,6 +110,7 @@ final class CameraController: NSObject, ObservableObject {
                                     keepOriginal: settings.keepOriginal,
                                     useAppleAutoEnhance: settings.useAppleAutoEnhance)
         albumName = settings.effectiveAlbumName
+        cropToSuggestion = settings.cropToSuggestion
         Haptics.shared.enabled = settings.hapticFeedback
     }
 
@@ -306,7 +313,11 @@ final class CameraController: NSObject, ObservableObject {
 
     // MARK: - Analysis loop
 
-    private func handle(signals: SceneSignals) {
+    private func handle(signals rawSignals: SceneSignals) {
+        // Smooth before anything else so the coach, the advisor and the UI all
+        // see the same calm view of the scene.
+        let signals = smoother.smooth(rawSignals)
+
         signalsLock.lock()
         latestSignals = signals
         signalsLock.unlock()
@@ -318,6 +329,10 @@ final class CameraController: NSObject, ObservableObject {
         let state = coach.evaluate(signals: signals,
                                    target: target,
                                    verticalFOVDegrees: verticalFOV)
+
+        signalsLock.lock()
+        latestCrop = state.crop.isFullFrame ? nil : state.crop.rect
+        signalsLock.unlock()
 
         let now = CACurrentMediaTime()
         let (stable, changed) = stabilizer.update(with: state.directive, now: now)
@@ -384,6 +399,7 @@ final class CameraController: NSObject, ObservableObject {
 
             self.signalsLock.lock()
             let signals = self.latestSignals
+            let crop = self.cropToSuggestion ? self.latestCrop : nil
             self.signalsLock.unlock()
 
             let settings = self.makePhotoSettings()
@@ -403,7 +419,7 @@ final class CameraController: NSObject, ObservableObject {
                     self.processorLock.lock()
                     self.processors[id] = nil
                     self.processorLock.unlock()
-                    self.finishCapture(result: result, signals: capturedSignals)
+                    self.finishCapture(result: result, signals: capturedSignals, crop: crop)
                 })
 
             self.processorLock.lock()
@@ -428,7 +444,9 @@ final class CameraController: NSObject, ObservableObject {
         return settings
     }
 
-    private func finishCapture(result: Result<Data, Error>, signals: SceneSignals) {
+    private func finishCapture(result: Result<Data, Error>,
+                               signals: SceneSignals,
+                               crop: CGRect?) {
         switch result {
         case .failure(let error):
             DispatchQueue.main.async {
@@ -442,6 +460,7 @@ final class CameraController: NSObject, ObservableObject {
                 var processed = self.editor.process(data: data,
                                                     signals: signals,
                                                     lightPhase: self.lightContext.sun.phase,
+                                                    crop: crop,
                                                     settings: self.editSettings)
                 // Advice for the frame as it was actually shot, so the review
                 // sheet can say how to shoot it again.

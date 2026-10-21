@@ -112,6 +112,10 @@ struct CoachingState {
     var sceneKind: SceneKind = .unknown
     var checks: [Check] = []
 
+    /// The rectangle inside the current frame that would make the better
+    /// photograph. Drawn on the preview, and applied on capture.
+    var crop: CropSuggestion = .fullFrame
+
     /// Short status line: either the scene we think this is, or nothing.
     var sceneLabel: String? {
         sceneKind == .unknown ? nil : sceneKind.displayName
