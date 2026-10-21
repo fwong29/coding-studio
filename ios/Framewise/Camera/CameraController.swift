@@ -374,8 +374,13 @@ final class CameraController: NSObject, ObservableObject {
     // MARK: - Capture
 
     func capture() {
-        sessionQueue.async {
-            guard self.session.isRunning else { return }
+        // The outer closure captures `self` weakly too. Declaring `[weak self]`
+        // only on the inner closures, under an enclosing closure that captured
+        // `self` strongly, is a contradiction the compiler warns about — and a
+        // pointless one, since the strong outer capture keeps the object alive
+        // regardless of what the inner ones say.
+        sessionQueue.async { [weak self] in
+            guard let self, self.session.isRunning else { return }
 
             self.signalsLock.lock()
             let signals = self.latestSignals
@@ -434,20 +439,27 @@ final class CameraController: NSObject, ObservableObject {
 
         case .success(let data):
             editQueue.async {
-                var edited = self.editor.process(data: data,
-                                                 signals: signals,
-                                                 lightPhase: self.lightContext.sun.phase,
-                                                 settings: self.editSettings)
+                var processed = self.editor.process(data: data,
+                                                    signals: signals,
+                                                    lightPhase: self.lightContext.sun.phase,
+                                                    settings: self.editSettings)
                 // Advice for the frame as it was actually shot, so the review
                 // sheet can say how to shoot it again.
-                edited.brief = self.advisor.brief(signals: signals,
-                                                  light: self.lightContext)
+                processed.brief = self.advisor.brief(signals: signals,
+                                                     light: self.lightContext)
+
+                // Frozen into a `let` before the Task picks it up. A `var`
+                // referenced from concurrently-executing code is a warning
+                // today and an error under Swift 6, and rightly so — nothing
+                // should be able to mutate this out from under the save.
+                let finished = processed
+
                 Task {
                     do {
-                        try await self.saver.save(edited, albumName: self.albumName)
+                        try await self.saver.save(finished, albumName: self.albumName)
                         await MainActor.run {
                             self.isCapturing = false
-                            self.lastCapture = edited
+                            self.lastCapture = finished
                             self.toast = "Saved to Photos"
                             Haptics.shared.saved()
                             self.onSaved?()
@@ -455,7 +467,7 @@ final class CameraController: NSObject, ObservableObject {
                     } catch {
                         await MainActor.run {
                             self.isCapturing = false
-                            self.lastCapture = edited
+                            self.lastCapture = finished
                             self.toast = error.localizedDescription
                             Haptics.shared.failure()
                         }
