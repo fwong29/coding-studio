@@ -23,7 +23,9 @@ SRC = os.path.join(ROOT, APP)
 # Build settings live here so the generator stays the single source of truth.
 DEPLOYMENT_TARGET = "17.0"
 SWIFT_VERSION = "5.0"
-BUNDLE_ID = "com.example.framewise"
+# Must be unique across all of Apple's developer accounts. `com.example.*` is
+# a placeholder others have already registered, so it fails to provision.
+BUNDLE_ID = "com.fordhamwong.framewise"
 
 USAGE = {
     "NSCameraUsageDescription":

@@ -1,0 +1,9 @@
+# Xcode per-user state: window layout, breakpoints, which file was open.
+# Nothing here belongs in the repository, and it changes constantly.
+**/xcuserdata/
+**/*.xcuserstate
+.DS_Store
+
+# Build output
+build/
+DerivedData/
