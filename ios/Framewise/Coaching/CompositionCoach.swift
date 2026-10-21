@@ -109,12 +109,17 @@ struct CompositionCoach {
         // steady — and the app cheerfully announced "That's the shot" at a
         // blank wall. Saying so is a claim about the composition, and there is
         // no composition without a subject.
+        // Readiness is now measured by how little cropping is left to do.
+        // That is the honest definition: the suggested crop shrinks as you
+        // frame the subject properly yourself, so needing no crop means you
+        // have already got it. It also gives the reading a visible cause —
+        // the box on screen — rather than an invisible tolerance check.
         let criticalsPass = checks.filter(\.isCritical).allSatisfy(\.passes)
         let hasSubject = signals.subjectPoint != nil && signals.subjectConfidence > 0.25
         state.isReady = criticalsPass
             && state.readiness >= 0.80
             && hasSubject
-            && state.aimAligned
+            && state.crop.isFullFrame
 
         // Pick the single most urgent failing rule.
         state.directive = checks
@@ -324,7 +329,7 @@ struct CompositionCoach {
             directive: Directive(
                 id: .placement,
                 text: placementText(nudge),
-                reason: "Bring the dot into the ring",
+                reason: "Move so the yellow box fills more of the frame",
                 nudge: nudge,
                 priority: 8))
     }

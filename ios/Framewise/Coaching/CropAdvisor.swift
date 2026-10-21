@@ -78,9 +78,19 @@ struct CropAdvisor {
             ideal.y = target.eyeLineY
         }
 
-        // The subject has to fit, with a little air around it.
+        // Whether the crop is obliged to contain the whole detected region.
+        //
+        // For a person it is: cropping through someone's head is never the
+        // suggestion you wanted. For everything else it is not, because
+        // Vision's salient-object boxes are loose regions rather than tight
+        // outlines — forcing the crop to swallow one whole is what made the
+        // box balloon out to the edges of the screen and stop meaning
+        // anything.
+        let mustContainWholeSubject = !signals.faces.isEmpty || !signals.humanBodies.isEmpty
         let needed = bounds.insetBy(dx: -0.025, dy: -0.025)
-        scale = max(scale, needed.width, needed.height)
+        if mustContainWholeSubject {
+            scale = max(scale, needed.width, needed.height)
+        }
         scale = clamp(scale, minimumScale, 1)
 
         // A crop is worth suggesting for either of two reasons: to tighten, or
@@ -88,7 +98,7 @@ struct CropAdvisor {
         // would do nothing, but it is sitting well away from where it belongs,
         // a modest crop that moves it onto its anchor is still an improvement.
         let placementError = anchor.distance(to: ideal)
-        if scale > 0.94, placementError > 0.12, needed.width < 0.9, needed.height < 0.9 {
+        if scale > 0.92, placementError > 0.12, needed.width < 0.9, needed.height < 0.9 {
             scale = 0.90
         }
 
@@ -102,13 +112,15 @@ struct CropAdvisor {
         rect.origin.x = clamp(rect.origin.x, 0, 1 - scale)
         rect.origin.y = clamp(rect.origin.y, 0, 1 - scale)
 
-        // If sliding still leaves the subject clipped, nudge to cover it.
-        if needed.minX < rect.minX { rect.origin.x = max(0, needed.minX) }
-        if needed.maxX > rect.maxX { rect.origin.x = min(1 - scale, needed.maxX - scale) }
-        if needed.minY < rect.minY { rect.origin.y = max(0, needed.minY) }
-        if needed.maxY > rect.maxY { rect.origin.y = min(1 - scale, needed.maxY - scale) }
+        // If sliding still leaves a person clipped, nudge to cover them.
+        if mustContainWholeSubject {
+            if needed.minX < rect.minX { rect.origin.x = max(0, needed.minX) }
+            if needed.maxX > rect.maxX { rect.origin.x = min(1 - scale, needed.maxX - scale) }
+            if needed.minY < rect.minY { rect.origin.y = max(0, needed.minY) }
+            if needed.maxY > rect.maxY { rect.origin.y = min(1 - scale, needed.maxY - scale) }
+        }
 
-        let isFull = scale > 0.94
+        let isFull = scale > 0.92
         return CropSuggestion(
             rect: rect,
             confidence: signals.subjectConfidence,
