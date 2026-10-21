@@ -8,13 +8,18 @@ import Foundation
 /// which building you are in.
 final class LocationProvider: NSObject, ObservableObject, CLLocationManagerDelegate {
 
-    @Published private(set) var coordinate: CLLocationCoordinate2D?
-    @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
+    // Not `private(set)`: `ShotDirector` subscribes to the `$coordinate` and
+    // `$headingDegrees` publishers from outside this class, and the access
+    // level Swift gives a projected value of a `private(set)` property has
+    // moved between compiler versions. Plain `@Published` on an internal
+    // helper costs nothing and can't fail to build.
+    @Published var coordinate: CLLocationCoordinate2D?
+    @Published var authorization: CLAuthorizationStatus = .notDetermined
     /// Which way the back camera is pointing, in degrees clockwise from true
     /// north. Combined with the sun's azimuth this is what lets the app say
     /// "you're shooting into the sun — put it over your shoulder" instead of
     /// just "the light is bad".
-    @Published private(set) var headingDegrees: Double?
+    @Published var headingDegrees: Double?
 
     private let manager = CLLocationManager()
 
