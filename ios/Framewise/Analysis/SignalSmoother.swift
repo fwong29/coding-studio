@@ -18,9 +18,16 @@ struct SignalSmoother {
     /// Consecutive disagreeing classifications before the scene kind changes.
     private let kindSwitchVotes = 3
 
+    /// Analysed frames with no detection before the held subject is dropped.
+    /// At roughly 8 Hz this is about a second — long enough to ride out a
+    /// blink in the detector, short enough that the marker doesn't sit on a
+    /// subject that has left the frame.
+    private let maxMisses = 8
+
     private var point: CGPoint?
     private var bounds: CGRect?
     private var confidence: CGFloat = 0
+    private var misses = 0
 
     private var stableKind: SceneKind = .unknown
     private var pendingKind: SceneKind = .unknown
@@ -30,6 +37,20 @@ struct SignalSmoother {
         var output = input
 
         // --- Subject position and box -------------------------------------
+        if input.subjectPoint == nil {
+            misses += 1
+            if misses > maxMisses {
+                // Let it go. Holding the last known subject indefinitely meant
+                // the coach kept composing around something that was no longer
+                // there, and never reported having lost it.
+                point = nil
+                bounds = nil
+                confidence = 0
+            }
+        } else {
+            misses = 0
+        }
+
         if let incoming = input.subjectPoint {
             if let previous = point, previous.distance(to: incoming) < snapDistance {
                 point = CGPoint(x: previous.x + (incoming.x - previous.x) * follow,

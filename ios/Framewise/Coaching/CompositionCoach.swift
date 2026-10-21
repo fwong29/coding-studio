@@ -71,7 +71,10 @@ struct CompositionCoach {
             checks.append(Check(id: .noSubject,
                                 score: 0.35,
                                 weight: 0.6,
-                                isCritical: false,
+                                // Critical. Without a subject there is nothing
+                                // to compose around, so the frame cannot be
+                                // "ready" however level and steady it is.
+                                isCritical: true,
                                 passThreshold: 0.5,
                                 directive: Directive(id: .noSubject,
                                                      text: "Find your subject",
@@ -93,14 +96,25 @@ struct CompositionCoach {
             ? checks.reduce(0) { $0 + $1.score * $1.weight } / totalWeight
             : 0
 
-        // Ready means every critical rule passes, not merely a good average:
-        // a frame can average well while still being visibly crooked.
-        let criticalsPass = checks.filter(\.isCritical).allSatisfy(\.passes)
-        state.isReady = criticalsPass && state.readiness >= 0.78
-
         if let aimTarget = state.aimTarget, let current = state.aimCurrent {
             state.aimAligned = current.distance(to: aimTarget) <= target.aimTolerance
         }
+
+        // Ready means every critical rule passes, not merely a good average:
+        // a frame can average well while still being visibly crooked.
+        //
+        // It also requires a subject that is actually on its mark. Without
+        // that last condition, pointing at nothing in particular while holding
+        // the phone level passed every critical check there was — level and
+        // steady — and the app cheerfully announced "That's the shot" at a
+        // blank wall. Saying so is a claim about the composition, and there is
+        // no composition without a subject.
+        let criticalsPass = checks.filter(\.isCritical).allSatisfy(\.passes)
+        let hasSubject = signals.subjectPoint != nil && signals.subjectConfidence > 0.25
+        state.isReady = criticalsPass
+            && state.readiness >= 0.80
+            && hasSubject
+            && state.aimAligned
 
         // Pick the single most urgent failing rule.
         state.directive = checks

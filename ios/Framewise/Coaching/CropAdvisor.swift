@@ -49,11 +49,15 @@ struct CropAdvisor {
             return .fullFrame
         }
 
-        // How much of the crop the subject should fill. The middle of the
-        // scene's acceptable range, so we aim for comfortable rather than
-        // either extreme.
-        let targetShare = clamp((target.subjectArea.lowerBound + target.subjectArea.upperBound) / 2,
-                                0.05, 0.75)
+        // How much of the crop the subject should fill.
+        //
+        // Deliberately higher than the share used for "move your feet"
+        // coaching. Cropping exists to make the subject dominate, so aiming at
+        // the middle of the comfortable range meant that for any subject
+        // bigger than about a quarter of the frame the solved scale came out
+        // above 1, got clamped, and the box silently never appeared. Vision's
+        // salient-object boxes are generous, so that was nearly always.
+        let targetShare = clamp(target.subjectArea.upperBound * 1.25, 0.30, 0.70)
 
         // Subject area is a fraction of the *full* frame. If it should instead
         // be `targetShare` of the crop, the crop covers subjectArea/targetShare
@@ -78,6 +82,15 @@ struct CropAdvisor {
         let needed = bounds.insetBy(dx: -0.025, dy: -0.025)
         scale = max(scale, needed.width, needed.height)
         scale = clamp(scale, minimumScale, 1)
+
+        // A crop is worth suggesting for either of two reasons: to tighten, or
+        // to reposition. If the subject is already big enough that tightening
+        // would do nothing, but it is sitting well away from where it belongs,
+        // a modest crop that moves it onto its anchor is still an improvement.
+        let placementError = anchor.distance(to: ideal)
+        if scale > 0.94, placementError > 0.12, needed.width < 0.9, needed.height < 0.9 {
+            scale = 0.90
+        }
 
         var rect = CGRect(x: anchor.x - ideal.x * scale,
                           y: anchor.y - ideal.y * scale,
