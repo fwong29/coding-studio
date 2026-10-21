@@ -139,11 +139,17 @@ final class AutoEditor {
         let stats = ToneAnalyzer.analyze(image: image, context: context)
 
         // 5. Turn measurements into numbers.
+        //
+        // ISO comes from the capture's own EXIF rather than being guessed from
+        // brightness. How noisy a frame is and how dark it looks are different
+        // questions — a bright scene shot indoors at ISO 2000 is full of grain,
+        // and a deliberately dark night shot at ISO 100 is clean.
         recipe = decide(recipe: recipe,
                         stats: stats,
                         preset: preset,
                         signals: signals,
-                        lightPhase: lightPhase)
+                        lightPhase: lightPhase,
+                        iso: isoSpeed(from: properties))
 
         // 6. Apply.
         image = apply(recipe: recipe, to: image, preset: preset)
@@ -160,12 +166,40 @@ final class AutoEditor {
 
     // MARK: - Decisions
 
+    /// Reads ISO out of the capture's EXIF, if present.
+    private func isoSpeed(from properties: [String: Any]) -> CGFloat? {
+        guard let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any] else {
+            return nil
+        }
+        if let ratings = exif[kCGImagePropertyExifISOSpeedRatings as String] as? [NSNumber],
+           let first = ratings.first {
+            return CGFloat(first.doubleValue)
+        }
+        if let single = exif[kCGImagePropertyExifISOSpeedRatings as String] as? NSNumber {
+            return CGFloat(single.doubleValue)
+        }
+        return nil
+    }
+
     private func decide(recipe input: EditRecipe,
                         stats: ToneSignal,
                         preset: ScenePreset,
                         signals: SceneSignals,
-                        lightPhase: LightPhase) -> EditRecipe {
+                        lightPhase: LightPhase,
+                        iso: CGFloat?) -> EditRecipe {
         var recipe = input
+
+        // How grainy the source is, 0 (clean) to 1 (very noisy).
+        // ISO 100 reads 0, ISO 3200 reads 1, on a log scale because that is
+        // how sensor noise actually grows.
+        let noiseFactor: CGFloat
+        if let iso, iso > 0 {
+            noiseFactor = clamp(log2(max(iso, 50) / 100) / 5, 0, 1)
+        } else {
+            // No EXIF: fall back to the old brightness proxy, but treat it as
+            // the weak evidence it is.
+            noiseFactor = clamp((0.3 - min(stats.medianLuma, 0.3)) * 2.0, 0, 1) * 0.7
+        }
 
         // --- Exposure -------------------------------------------------
         // Drive the median toward the scene's target, in stops. Clamped
@@ -173,7 +207,13 @@ final class AutoEditor {
         // down tends to mean the highlights were already gone.
         let median = max(stats.medianLuma, 0.01)
         var ev = log2(preset.targetMedian / median)
-        ev = clamp(ev, -0.7, 1.3)
+
+        // Brightening is where grain comes from: every stop up is a stop of
+        // noise up with it. On a noisy frame, accept a darker photo rather
+        // than a loud one — underexposure reads as mood, grain reads as a
+        // mistake.
+        let brightenCap = 1.3 * (1 - noiseFactor * 0.6)
+        ev = clamp(ev, -0.7, brightenCap)
 
         // Back off brightening when the highlights are already at the edge,
         // or we trade recoverable shadow for unrecoverable white.
@@ -197,7 +237,10 @@ final class AutoEditor {
         // Lift shadows in proportion to how much of the frame is actually
         // crushed, not as a fixed amount.
         let shadowNeed = clamp((0.14 - stats.p5Luma) / 0.14, 0, 1)
-        recipe.shadowLift = shadowNeed * preset.maxShadowLift
+        // Lifting shadows is the single noisiest operation in the stack: the
+        // darkest pixels are where the sensor had least signal, so pulling
+        // them up amplifies almost pure noise. Back off hard on grainy frames.
+        recipe.shadowLift = shadowNeed * preset.maxShadowLift * (1 - noiseFactor * 0.75)
         if signals.isBacklit {
             recipe.shadowLift = min(1, recipe.shadowLift + 0.25)
         }
@@ -211,11 +254,13 @@ final class AutoEditor {
         let flatness = clamp((0.62 - stats.contrast) / 0.5, 0, 1)
         recipe.contrast = flatness * preset.contrast
 
-        // Lifting shadows washes the blacks out, so put a black point back
-        // under it. Night scenes get the most, since that is where a muddy
-        // black is most obvious.
-        if recipe.shadowLift > 0.2 || signals.kind == .nightScene {
-            recipe.blackPoint = min(0.035, 0.012 + recipe.shadowLift * 0.03)
+        // Lifting shadows washes the blacks out, so put a real black point back
+        // under it: anything below this input level is driven to true black.
+        // That is what keeps shadows looking like shadows instead of grey
+        // mush, and it hides the noise living down there rather than
+        // displaying it. Grainier frames get a slightly firmer floor.
+        if recipe.shadowLift > 0.15 || signals.kind == .nightScene || noiseFactor > 0.3 {
+            recipe.blackPoint = min(0.05, 0.015 + recipe.shadowLift * 0.03 + noiseFactor * 0.025)
         }
 
         // --- Colour ---------------------------------------------------
@@ -227,19 +272,20 @@ final class AutoEditor {
         recipe.saturation = stats.saturation > 0.55 ? 0.95 : 1.0
 
         // --- Detail ---------------------------------------------------
-        recipe.clarity = preset.clarity
-        recipe.sharpness = preset.sharpness
+        // Clarity and sharpening do not distinguish between detail and grain;
+        // they amplify whichever is there. On a noisy frame they are what
+        // turns acceptable grain into obvious grain, so both scale down as
+        // the noise goes up.
+        recipe.clarity = preset.clarity * (1 - noiseFactor * 0.85)
+        recipe.sharpness = preset.sharpness * (1 - noiseFactor * 0.7)
+        recipe.noiseReduction = noiseFactor * 0.85
 
-        // Noise rises with the shadow lift and with how dark the original was,
-        // which together are a decent stand-in for ISO.
-        let noiseEstimate = clamp(recipe.shadowLift * 0.6 + (0.3 - min(stats.medianLuma, 0.3)) * 2.0, 0, 1)
-        recipe.noiseReduction = noiseEstimate * 0.5
-
-        // Heavy noise reduction plus heavy sharpening fight each other and
-        // leave a plasticky texture, so back the detail off together.
-        if recipe.noiseReduction > 0.25 {
-            recipe.sharpness *= 0.6
-            recipe.clarity *= 0.7
+        // A crop is a magnification: the same grain is now spread over more
+        // of the final picture, so ease off the detail work again.
+        if recipe.cropped {
+            recipe.clarity *= 0.75
+            recipe.sharpness *= 0.75
+            recipe.noiseReduction = min(1, recipe.noiseReduction * 1.25)
         }
 
         // Skin does not want clarity or much sharpening.
@@ -344,12 +390,18 @@ final class AutoEditor {
         }
 
         if recipe.contrast > 0.01 || recipe.blackPoint > 0.002 {
-            // Symmetrical S-curve pivoting on the mid-tone, with an optional
-            // black-point lift at the bottom end.
+            // Symmetrical S-curve pivoting on the mid-tone, with a black
+            // point at the bottom end.
+            //
+            // point0 maps INPUT blackPoint to OUTPUT zero, so everything below
+            // that input level is crushed to true black. Writing it the other
+            // way round — (0, blackPoint) — lifts blacks to grey instead,
+            // which washes the image out and puts every bit of shadow noise on
+            // display. That was the bug here.
             let bend = recipe.contrast * 0.085
             let filter = CIFilter.toneCurve()
             filter.inputImage = image
-            filter.point0 = CGPoint(x: 0, y: recipe.blackPoint)
+            filter.point0 = CGPoint(x: recipe.blackPoint, y: 0)
             filter.point1 = CGPoint(x: 0.25, y: clamp(0.25 - bend, 0.02, 0.5))
             filter.point2 = CGPoint(x: 0.5, y: 0.5)
             filter.point3 = CGPoint(x: 0.75, y: clamp(0.75 + bend, 0.5, 0.98))
@@ -389,8 +441,10 @@ final class AutoEditor {
         if recipe.noiseReduction > 0.01 {
             let filter = CIFilter.noiseReduction()
             filter.inputImage = image
-            filter.noiseLevel = Float(recipe.noiseReduction * 0.03)
-            filter.sharpness = Float(0.4 + recipe.sharpness * 0.4)
+            // CINoiseReduction's own `sharpness` re-sharpens after denoising;
+            // keeping it low avoids undoing the work we just did.
+            filter.noiseLevel = Float(recipe.noiseReduction * 0.045)
+            filter.sharpness = Float(0.25 + recipe.sharpness * 0.35)
             image = filter.outputImage ?? image
         }
 
