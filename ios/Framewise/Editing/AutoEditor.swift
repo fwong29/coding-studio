@@ -149,7 +149,7 @@ final class AutoEditor {
                         preset: preset,
                         signals: signals,
                         lightPhase: lightPhase,
-                        iso: isoSpeed(from: properties))
+                        iso: isoSpeed(fromImageData: data))
 
         // 6. Apply.
         image = apply(recipe: recipe, to: image, preset: preset)
@@ -166,17 +166,32 @@ final class AutoEditor {
 
     // MARK: - Decisions
 
-    /// Reads ISO out of the capture's EXIF, if present.
-    private func isoSpeed(from properties: [String: Any]) -> CGFloat? {
-        guard let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any] else {
-            return nil
-        }
+    /// Reads ISO out of the capture's EXIF.
+    ///
+    /// Goes to the encoded bytes through `CGImageSource` rather than reading
+    /// `CIImage.properties`. The latter is not reliably populated once the
+    /// image has been constructed with orientation applied, and when it came
+    /// back empty the noise estimate fell through to a brightness proxy — so a
+    /// well-lit room shot at ISO 2000 was treated as a clean frame and got the
+    /// full dose of clarity and sharpening. That is what made indoor photos
+    /// look crunchy.
+    private func isoSpeed(fromImageData data: Data) -> CGFloat? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+                as? [String: Any],
+              let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any]
+        else { return nil }
+
         if let ratings = exif[kCGImagePropertyExifISOSpeedRatings as String] as? [NSNumber],
            let first = ratings.first {
             return CGFloat(first.doubleValue)
         }
         if let single = exif[kCGImagePropertyExifISOSpeedRatings as String] as? NSNumber {
             return CGFloat(single.doubleValue)
+        }
+        // Some devices report only the newer photographic sensitivity key.
+        if let sensitivity = exif[kCGImagePropertyExifPhotographicSensitivity as String] as? NSNumber {
+            return CGFloat(sensitivity.doubleValue)
         }
         return nil
     }
@@ -196,9 +211,11 @@ final class AutoEditor {
         if let iso, iso > 0 {
             noiseFactor = clamp(log2(max(iso, 50) / 100) / 5, 0, 1)
         } else {
-            // No EXIF: fall back to the old brightness proxy, but treat it as
-            // the weak evidence it is.
-            noiseFactor = clamp((0.3 - min(stats.medianLuma, 0.3)) * 2.0, 0, 1) * 0.7
+            // No EXIF at all. Assume a middling amount of noise rather than
+            // none: guessing "clean" and sharpening hard is a visible,
+            // irreversible mistake, while guessing "noisy" and being gentle
+            // just leaves the photo close to how it arrived.
+            noiseFactor = max(0.45, clamp((0.3 - min(stats.medianLuma, 0.3)) * 2.0, 0, 1))
         }
 
         // --- Exposure -------------------------------------------------
@@ -279,6 +296,15 @@ final class AutoEditor {
         recipe.clarity = preset.clarity * (1 - noiseFactor * 0.85)
         recipe.sharpness = preset.sharpness * (1 - noiseFactor * 0.7)
         recipe.noiseReduction = noiseFactor * 0.85
+
+        // Past a certain amount of grain, clarity and sharpening have nothing
+        // left to find: everything fine-grained in the frame is noise, so all
+        // they can do is make it louder. Stop entirely rather than applying a
+        // small amount of something actively harmful.
+        if noiseFactor > 0.5 {
+            recipe.clarity = 0
+            recipe.sharpness = 0
+        }
 
         // A crop is a magnification: the same grain is now spread over more
         // of the final picture, so ease off the detail work again.
@@ -430,11 +456,14 @@ final class AutoEditor {
         if recipe.clarity > 0.01 {
             // Large radius, low intensity: local contrast rather than edge
             // sharpening, which is what gives a photo "presence" without
-            // looking crunchy.
+            // looking crunchy. The multiplier is deliberately conservative —
+            // an auto-edit that is occasionally too timid is a much smaller
+            // failure than one that is occasionally too heavy, because nobody
+            // notices the first and everybody notices the second.
             let filter = CIFilter.unsharpMask()
             filter.inputImage = image
             filter.radius = 12
-            filter.intensity = Float(recipe.clarity * 0.5)
+            filter.intensity = Float(recipe.clarity * 0.32)
             image = filter.outputImage ?? image
         }
 
@@ -451,8 +480,8 @@ final class AutoEditor {
         if recipe.sharpness > 0.01 {
             let filter = CIFilter.sharpenLuminance()
             filter.inputImage = image
-            filter.sharpness = Float(recipe.sharpness * 0.7)
-            filter.radius = 1.6
+            filter.sharpness = Float(recipe.sharpness * 0.45)
+            filter.radius = 1.4
             image = filter.outputImage ?? image
         }
 
