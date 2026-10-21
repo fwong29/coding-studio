@@ -166,6 +166,10 @@ struct SceneSignals {
     var tone = ToneSignal()
     var motion = MotionSignal()
 
+    /// Low-resolution maps of the frame, used to search for the best crop.
+    /// Nil until the first analysis pass completes.
+    var maps: FrameMaps?
+
     /// Edge energy in the outer border of the frame — high values mean a busy,
     /// distracting edge.
     var edgeClutter: CGFloat = 0

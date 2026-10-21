@@ -185,6 +185,25 @@ struct CameraScreen: View {
 
             Spacer(minLength: 0)
 
+            // Only offered when there is a box to zoom into. Cropping on
+            // capture already gives these pixels; zooming can do better,
+            // because the system may reach for a longer lens.
+            if !camera.coaching.crop.isFullFrame {
+                Button {
+                    camera.zoomToCrop()
+                } label: {
+                    Label("Zoom into the box", systemImage: "plus.magnifyingglass")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.yellow, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 10)
+                .transition(.scale.combined(with: .opacity))
+            }
+
             DirectiveBanner(directive: camera.directive,
                             isReady: camera.coaching.isReady)
 
@@ -192,6 +211,7 @@ struct CameraScreen: View {
         }
         .padding(.top, 44)
         .padding(.bottom, 28)
+        .animation(.easeInOut(duration: 0.25), value: camera.coaching.crop.isFullFrame)
     }
 
     private var controls: some View {

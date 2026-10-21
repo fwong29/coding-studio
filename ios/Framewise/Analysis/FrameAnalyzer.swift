@@ -113,8 +113,15 @@ final class FrameAnalyzer {
             signals.humanBodies = humans.map { FrameSpace.fromVision($0.boundingBox) }
         }
 
-        // Saliency -> the anchor for the aim marker.
-        if let saliency = saliencyRequest.results?.first as? VNSaliencyImageObservation {
+        let saliencyObservation = saliencyRequest.results?.first as? VNSaliencyImageObservation
+
+        // Low-resolution maps for the crop search. Built once per pass and
+        // queried a few hundred times, so the cost is in here rather than in
+        // the search.
+        signals.maps = FrameMaps(pixelBuffer: pixelBuffer, saliency: saliencyObservation)
+
+        // Saliency also gives a single subject anchor, for the coaching rules.
+        if let saliency = saliencyObservation {
             if let box = primarySalientBox(saliency) {
                 signals.subjectBounds = box.rect
                 signals.subjectPoint = box.rect.center

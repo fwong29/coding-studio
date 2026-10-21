@@ -10,7 +10,7 @@ import Foundation
 /// in `DirectiveStabilizer`, one layer up.
 struct CompositionCoach {
 
-    private let cropAdvisor = CropAdvisor()
+    private let cropFinder = AestheticCropFinder()
 
     func evaluate(signals: SceneSignals,
                   target: FramingTarget,
@@ -88,7 +88,10 @@ struct CompositionCoach {
         }
 
         state.checks = checks
-        state.crop = cropAdvisor.suggest(signals: signals, target: target)
+        // Search the frame for the best-looking rectangle. Falls back to the
+        // whole frame until the first analysis pass has produced maps.
+        state.crop = signals.maps.map { cropFinder.find(maps: $0, signals: signals) }
+            ?? .fullFrame
 
         // Readiness is the weighted average of every rule.
         let totalWeight = checks.reduce(0) { $0 + $1.weight }

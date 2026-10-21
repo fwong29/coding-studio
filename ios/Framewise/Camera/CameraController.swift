@@ -69,6 +69,11 @@ final class CameraController: NSObject, ObservableObject {
     /// per-scene default so free shooting still gets coached.
     private var assignmentTarget: FramingTarget?
 
+    /// Where focus was last pointed, so we only re-focus when the box has
+    /// actually moved somewhere new.
+    private var lastFocusPoint: CGPoint?
+    private var lastFocusAt: TimeInterval = 0
+
     // Auto-shutter bookkeeping.
     private var readySince: TimeInterval?
     private var lastCaptureAt: TimeInterval = 0
@@ -334,6 +339,11 @@ final class CameraController: NSObject, ObservableObject {
         latestCrop = state.crop.isFullFrame ? nil : state.crop.rect
         signalsLock.unlock()
 
+        // Focus and meter on whatever is in the box. The box is the picture
+        // being taken, so it is the thing that should be sharp and correctly
+        // exposed — not whatever happens to sit at the centre of the frame.
+        focusOnCropIfNeeded(state.crop, now: CACurrentMediaTime())
+
         let now = CACurrentMediaTime()
         let (stable, changed) = stabilizer.update(with: state.directive, now: now)
 
@@ -384,6 +394,42 @@ final class CameraController: NSObject, ObservableObject {
             readySince = nil
             capture()
         }
+    }
+
+    /// Re-points focus at the box, but only when it has moved somewhere
+    /// meaningfully different and not too often.
+    ///
+    /// Autofocus takes time to settle and visibly hunts while it does, so
+    /// chasing every small change would leave the preview permanently
+    /// searching. A tenth of the frame and a second and a half are both well
+    /// above the noise floor.
+    private func focusOnCropIfNeeded(_ crop: CropSuggestion, now: TimeInterval) {
+        guard !crop.isFullFrame else { return }
+        let centre = crop.rect.center
+
+        if let last = lastFocusPoint, last.distance(to: centre) < 0.10 { return }
+        guard now - lastFocusAt > 1.5 else { return }
+
+        lastFocusPoint = centre
+        lastFocusAt = now
+        focus(atFrameSpacePoint: centre)
+    }
+
+    /// Zooms so the suggested box fills the frame.
+    ///
+    /// On a multi-lens iPhone this is better than cropping after the fact:
+    /// the system may switch to a longer lens, which produces genuinely more
+    /// detail rather than fewer pixels. Zoom is centred, though, so the box
+    /// has to be near the middle for the result to match it — the directive
+    /// tells the user to recentre.
+    func zoomToCrop() {
+        signalsLock.lock()
+        let crop = latestCrop
+        signalsLock.unlock()
+
+        guard let crop, crop.width > 0.05 else { return }
+        setZoom(zoomFactor / crop.width)
+        Haptics.shared.directiveChanged()
     }
 
     // MARK: - Capture
