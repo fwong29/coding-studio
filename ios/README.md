@@ -4,19 +4,27 @@ A native iOS camera that tells you what to photograph, directs you to the
 shot, auto-edits what you capture, and writes it straight into your Photos
 library. No export step, no share sheet.
 
-Three things happen at once while the viewfinder is open:
+Point it at anything at all. Three things happen at once:
 
-1. **It gives you an assignment.** A card at the top says what to shoot and
-   where to find it — "put your subject an arm's length from the window,
-   side-on to the glass" — chosen to suit the light you actually have and what
-   the camera can already see.
+1. **It reads the scene and tells you where to stand.** The panel at the top
+   names what it thinks it's looking at — *"An animal, shot from above, in flat
+   light from behind you"* — and then gives you the moves that would actually
+   change the picture: *Get down to its eye level*, *Walk around to the lit
+   side*, *You're shooting into the sun*, *Move in to lose the clutter*. Each
+   one comes with the reason, so it teaches rather than just commands.
 2. **It directs your hands.** A ring marks where the subject should sit, a dot
    rides the subject itself, and one large instruction tells you the single
-   next thing to do: *Pan right*, *Tilt down*, *Level it up*, *Step closer*.
-   The ring round the shutter fills as the frame improves.
+   next thing to do: *Pan right*, *Tilt down*, *Level it up*. The ring round
+   the shutter fills as the frame improves.
 3. **It finishes the photo.** On capture the frame is straightened, exposed,
    white-balanced, tone-mapped and sharpened according to what kind of photo
-   it is, then saved to Photos and collected in a *Framewise* album.
+   it is, then saved to Photos and collected in a *Framewise* album. The review
+   sheet then shows you how to shoot that same scene better next time.
+
+The division of labour between (1) and (2) is the thing to understand: the
+advisor handles decisions you make **with your feet** — height, angle, which
+side the light comes from, whether to come back later. The coach handles the
+last few inches you fix **without moving** — pan, tilt, level, framing.
 
 With auto-shutter on (the default) you never press anything: hold the frame
 where it asks and the photo takes itself.
@@ -60,7 +68,8 @@ cd ios && xcodegen generate
 |---|---|---|
 | Camera | The live frame it coaches and captures | Yes |
 | Photos | Saving the finished photo | Yes |
-| Location | Solar position, to time golden hour and say which way the light falls | No — falls back to the clock |
+| Location | Solar position, to time golden hour and work out where the sun is relative to where you're pointing | No — falls back to the clock |
+| Compass | Camera bearing, so "you're shooting into the sun" can be literal rather than guessed | No — advice falls back to reading the frame's own brightness |
 
 Location is read at kilometre accuracy, used only to compute where the sun is,
 and never stored or transmitted. The app makes no network requests at all;
@@ -120,20 +129,58 @@ written down at each site. Panning the camera right sweeps the scene *left*
 across the frame; tilting down sweeps it *up*. So moving a subject onto the
 left third means panning right.
 
-### Choosing the shot — `Coaching/ShotLibrary`, `ShotDirector`
+### Where to stand — `Coaching/AngleAdvisor.swift`
 
-24 assignments across everyday subjects: portraits, pets, food, landscape,
-street, architecture, still life, plants, night. Each one carries a
+The default coaching mode, and a pure function of the signals like the coach
+is. It generates advice along six axes and shows the top four, because four is
+about as much as anyone can hold in their head while also looking at a
+subject:
+
+- **Light** leads, because it is the thing you cannot fix afterwards and the
+  thing that most changes the photo. Backlight is checked first since it's the
+  one condition that actively fights you.
+- **Height** is next, because it's the correction that most often transforms a
+  snapshot and almost nobody makes it unprompted — people shoot everything
+  from standing eye level because that's where their eyes already are.
+- Then **distance**, **angle**, **background** and **timing**.
+
+Two inputs make the light advice concrete rather than generic:
+
+**Sun bearing relative to the camera.** The compass gives the camera's
+bearing, `SunPosition` gives the sun's azimuth, and the difference says whether
+you're shooting into the sun (within 40°), across it (60–120°, the good case),
+or with it behind you (beyond 140°, flat and shadowless). That's what lets the
+app say *"turn 90° so the sun is over your shoulder"* instead of *"the light is
+bad"*.
+
+**Light direction read off the frame.** `ToneAnalyzer` measures mean luma per
+half of the frame, and the imbalance says which way the light falls. This is
+what works indoors, where there's no sun bearing to use: a brighter left half
+means the window is on your left, so the advice becomes *"keep it to the side,
+put the subject an arm's length from the glass"*. The sensor buffer is
+landscape-native and the frame is portrait, so that mapping is rotated before
+use — getting it backwards would have the app pointing you at the wrong side of
+the room.
+
+Advice is recomputed about once a second, not on every analysed frame.
+Positional advice that rewrites itself eight times a second is unreadable, and
+the underlying facts barely change that fast.
+
+### Assignments — `Coaching/ShotLibrary`, `ShotDirector` (optional)
+
+Behind a preference, off by default: instead of reading the scene, the panel
+hands you shots to go and find. 24 assignments across portraits, pets, food,
+landscape, street, architecture, still life, plants and night. Each carries a
 `FramingTarget`, so picking "overhead flat lay" genuinely reconfigures the
 coach — it switches the aim rule to centred, tightens the tolerance, and
 starts caring whether the phone is flat.
 
 `ShotDirector` scores every assignment against the moment rather than drawing
-at random. Light is a hard filter: suggesting a blue-hour shot at eleven in
-the morning is the fastest way to make the app feel stupid. Beyond that it
-prefers assignments matching what the camera is already pointed at, pushes
-golden-hour-only shots to the front while that light lasts, and avoids
-repeating what you just shot.
+at random. Light is a hard filter: suggesting a blue-hour shot at eleven in the
+morning is the fastest way to make the app feel stupid.
+
+It's off by default because being told to go find a window portrait isn't much
+help when you're stood in a field. Turn it on in Settings → Coaching.
 
 `SunPosition` implements the standard NOAA solar approximation — accurate to
 well under a degree, which is far better than needed to say "golden hour in
@@ -199,7 +246,7 @@ ios/Framewise/
   FramewiseApp.swift          app entry
   Analysis/                   Vision, tone statistics, device attitude
   Camera/                     AVCaptureSession, preview layer, capture delegate
-  Coaching/                   composition rules, directives, shot library, sun
+  Coaching/                   angle advisor, composition rules, shot library, sun
   Editing/                    scene presets and the Core Image pipeline
   Library/                    Photos library writes
   UI/                         viewfinder, overlay, assignment card, settings
@@ -222,6 +269,14 @@ ios/Framewise/
   preset, and faces and shooting angle override it where they are decisive.
 - **The location toggle takes effect on next launch**, since the director
   starts location services when it is created.
+- **Sun-relative light advice needs the compass.** Without a heading fix the
+  advisor falls back to reading the frame's own brightness, which still gets
+  left/right and backlight, but can't tell you where the sun is. Heading
+  calibration prompts are suppressed so they never interrupt the viewfinder.
+- **The scene read is only as good as the classifier.** When it guesses wrong
+  the positional advice will be aimed at the wrong kind of photo, which is why
+  the panel shows its read on the first line — so you can see it's wrong before
+  you act on it.
 - Untested on device: there is no Mac or iPhone in the environment this was
   written in, so it has had a careful review pass but has never been compiled
   or run. Expect to fix a few small things on first build.

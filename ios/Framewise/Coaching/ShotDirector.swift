@@ -20,6 +20,18 @@ final class ShotDirector: ObservableObject {
     /// Ranked alternatives behind the current one.
     @Published private(set) var queue: [ShotAssignment] = []
     @Published private(set) var sun: SunState = .unknown
+    /// Camera bearing from the compass, when available.
+    @Published private(set) var heading: Double?
+
+    /// Pushed to the camera controller whenever the light or the bearing
+    /// changes. A callback rather than an observed property because
+    /// `SunState` carries `NaN` when unknown, and `NaN != NaN` would make an
+    /// `onChange` observer fire on every single update.
+    var onLightContextChange: ((LightContext) -> Void)?
+
+    var lightContext: LightContext {
+        LightContext(sun: sun, headingDegrees: heading)
+    }
     /// Set when the user pins an assignment; stops automatic re-selection.
     @Published private(set) var isPinned = false
 
@@ -46,6 +58,14 @@ final class ShotDirector: ObservableObject {
                     self?.updateSun(for: coordinate)
                 }
                 .store(in: &cancellables)
+
+            location.$headingDegrees
+                .sink { [weak self] value in
+                    guard let self else { return }
+                    self.heading = value
+                    self.onLightContextChange?(self.lightContext)
+                }
+                .store(in: &cancellables)
         }
         updateSun(for: location.coordinate)
 
@@ -61,6 +81,7 @@ final class ShotDirector: ObservableObject {
 
     deinit {
         refreshTimer?.invalidate()
+        location.stop()
     }
 
     // MARK: - Sun and light
@@ -74,6 +95,7 @@ final class ShotDirector: ObservableObject {
             fallback.phase = SunPosition.approximatePhase(from: Date())
             sun = fallback
         }
+        onLightContextChange?(lightContext)
         if current == nil { reselect() }
     }
 

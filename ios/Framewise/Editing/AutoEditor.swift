@@ -14,6 +14,9 @@ struct EditedCapture {
     /// Small previews for the review sheet.
     let beforeThumbnail: UIImage?
     let afterThumbnail: UIImage?
+    /// How to shoot this scene better next time. Filled in by the controller
+    /// after editing, from the analysis snapshot taken at capture.
+    var brief: SceneBrief?
 }
 
 /// Applies a scene-aware set of corrections to a captured photo.

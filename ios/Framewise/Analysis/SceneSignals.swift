@@ -76,8 +76,45 @@ struct ToneSignal {
     /// Spread of the mid-tones; a proxy for how flat the light is.
     var contrast: CGFloat = 0.2
 
+    /// Mean luma of each half of the frame, in *frame* orientation (so
+    /// `lumaLeft` really is the left of the picture, not the left of the
+    /// landscape sensor buffer). The imbalance between them is how we work out
+    /// which direction the light is coming from, which is the single most
+    /// useful thing to tell someone about where to stand.
+    var lumaLeft: CGFloat = 0.5
+    var lumaRight: CGFloat = 0.5
+    var lumaTop: CGFloat = 0.5
+    var lumaBottom: CGFloat = 0.5
+
     var isDark: Bool { medianLuma < 0.22 }
     var isVeryDark: Bool { medianLuma < 0.12 }
+}
+
+/// Which way the light is falling, as read off the frame.
+enum LightDirection: String {
+    /// Light from frame-left — the classic window-to-the-side setup.
+    case fromLeft
+    case fromRight
+    /// Brighter at the top: overhead sun, or a ceiling light.
+    case fromAbove
+    /// Behind the subject, pointing at the camera.
+    case backlit
+    /// Coming from behind the photographer. Technically easy, visually flat —
+    /// it fills in every shadow that would have given the subject shape.
+    case frontal
+    /// No usable direction: overcast, or a big soft source everywhere.
+    case even
+
+    var displayName: String {
+        switch self {
+        case .fromLeft: return "light from the left"
+        case .fromRight: return "light from the right"
+        case .fromAbove: return "light from above"
+        case .backlit: return "backlit"
+        case .frontal: return "flat light from behind you"
+        case .even: return "even light"
+        }
+    }
 }
 
 /// Device attitude, from CoreMotion.
@@ -173,4 +210,51 @@ struct SceneSignals {
     }
 
     var subjectIsDarkerThanFrame: Bool = false
+
+    /// Reads the light direction off the frame's brightness distribution.
+    ///
+    /// Order matters: backlight is checked first because it is the one case
+    /// that actively fights you, and it shows up as a dark subject against a
+    /// clipping background rather than as a left/right imbalance.
+    var lightDirection: LightDirection {
+        if isBacklit { return .backlit }
+
+        let horizontal = tone.lumaLeft - tone.lumaRight
+        let vertical = tone.lumaTop - tone.lumaBottom
+
+        // A tenth of the luma range is about the point where a side-lit frame
+        // starts to look side-lit rather than evenly lit.
+        if abs(horizontal) > 0.10, abs(horizontal) > abs(vertical) {
+            return horizontal > 0 ? .fromLeft : .fromRight
+        }
+        if vertical > 0.12 { return .fromAbove }
+
+        // Light from behind the camera leaves no shadows anywhere, which shows
+        // up as an unusually narrow tonal range.
+        if tone.contrast < 0.26 { return .frontal }
+        return .even
+    }
+
+    /// Coarse bands for camera elevation, which is what positional advice is
+    /// actually keyed off.
+    enum Elevation {
+        case straightDown
+        case steeplyDown
+        case down
+        case level
+        case up
+        case steeplyUp
+    }
+
+    var elevationBand: Elevation {
+        guard motion.isAvailable else { return .level }
+        switch motion.elevationDegrees {
+        case ..<(-72): return .straightDown
+        case ..<(-38): return .steeplyDown
+        case ..<(-14): return .down
+        case ..<14: return .level
+        case ..<45: return .up
+        default: return .steeplyUp
+        }
+    }
 }

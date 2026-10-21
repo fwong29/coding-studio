@@ -50,7 +50,8 @@ enum ToneAnalyzer {
             }
         }
 
-        let tone = statistics(from: samples)
+        var tone = statistics(from: samples)
+        applyQuadrants(to: &tone, grid: samples, side: side)
         let clutter = borderEnergy(samples, side: side)
         let sharp = centreSharpness(pointer: pointer,
                                     bytesPerRow: bytesPerRow,
@@ -191,6 +192,53 @@ enum ToneAnalyzer {
             tone.highlightRGB = tone.meanRGB
         }
         return tone
+    }
+
+    /// Fills in the per-half means, rotating the landscape sensor grid into
+    /// frame orientation on the way.
+    ///
+    /// The grid is sampled straight out of the camera buffer, which is
+    /// landscape-native: `gx` runs along the buffer's width and `gy` along its
+    /// height. Portrait frame space is that buffer rotated 90 degrees
+    /// clockwise, so undoing the rotation gives
+    ///   frameY = gx / (side - 1)
+    ///   frameX = 1 - gy / (side - 1)
+    /// which puts the frame's top at low `gx` and the frame's left at high
+    /// `gy`. Getting this backwards would have the app telling you the window
+    /// is on the wrong side of the room.
+    ///
+    /// Only the live path needs these. The captured-still path leaves them at
+    /// their neutral defaults, because the brief for a photo is built from the
+    /// analyser's snapshot rather than re-derived from the encoded file.
+    private static func applyQuadrants(to tone: inout ToneSignal,
+                                       grid: [Sample],
+                                       side: Int) {
+        guard grid.count == side * side, side >= 2 else { return }
+        let half = side / 2
+
+        var leftSum: Float = 0, rightSum: Float = 0
+        var topSum: Float = 0, bottomSum: Float = 0
+        var leftCount: Float = 0, rightCount: Float = 0
+        var topCount: Float = 0, bottomCount: Float = 0
+
+        for gy in 0..<side {
+            let isFrameLeft = gy >= half
+            for gx in 0..<side {
+                let luma = grid[gy * side + gx].luma
+                let isFrameTop = gx < half
+
+                if isFrameLeft { leftSum += luma; leftCount += 1 }
+                else { rightSum += luma; rightCount += 1 }
+
+                if isFrameTop { topSum += luma; topCount += 1 }
+                else { bottomSum += luma; bottomCount += 1 }
+            }
+        }
+
+        if leftCount > 0 { tone.lumaLeft = CGFloat(leftSum / leftCount) }
+        if rightCount > 0 { tone.lumaRight = CGFloat(rightSum / rightCount) }
+        if topCount > 0 { tone.lumaTop = CGFloat(topSum / topCount) }
+        if bottomCount > 0 { tone.lumaBottom = CGFloat(bottomSum / bottomCount) }
     }
 
     /// Gradient energy in the outer eighth of the frame.

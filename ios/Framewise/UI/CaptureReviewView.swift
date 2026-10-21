@@ -23,6 +23,10 @@ struct CaptureReviewView: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
+                    if let brief = capture.brief, !brief.isEmpty {
+                        adviceCard(brief)
+                    }
+
                     recipeCard
 
                     Label("Saved to your Photos library",
@@ -69,6 +73,47 @@ struct CaptureReviewView: View {
                 .foregroundStyle(.white)
                 .padding(10)
         }
+    }
+
+    /// The point of this sheet: not just what the editor did, but what you
+    /// could do differently if you take the shot again. The scene was analysed
+    /// at the moment of capture, so the advice is about the photo on screen
+    /// rather than wherever the phone is now pointing.
+    private func adviceCard(_ brief: SceneBrief) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Shoot it again like this")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                Text(brief.read)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+
+            ForEach(brief.advice) { advice in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: advice.axis.symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(.tint, in: Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(advice.headline)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(advice.detail)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var recipeCard: some View {

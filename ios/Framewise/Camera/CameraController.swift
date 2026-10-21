@@ -25,6 +25,8 @@ final class CameraController: NSObject, ObservableObject {
     @Published private(set) var lastCapture: EditedCapture?
     @Published private(set) var toast: String?
     @Published private(set) var zoomFactor: CGFloat = 1
+    /// Where-to-stand advice for whatever the camera is looking at right now.
+    @Published private(set) var brief = SceneBrief()
 
     let session = AVCaptureSession()
 
@@ -40,6 +42,7 @@ final class CameraController: NSObject, ObservableObject {
 
     private let analyzer = FrameAnalyzer()
     private let coach = CompositionCoach()
+    private let advisor = AngleAdvisor()
     private let stabilizer = DirectiveStabilizer()
     private let editor = AutoEditor()
     private let saver = PhotoSaver()
@@ -73,7 +76,12 @@ final class CameraController: NSObject, ObservableObject {
                                             keepOriginal: false,
                                             useAppleAutoEnhance: false)
     private var albumName = "Framewise"
-    private var lightPhase: LightPhase = .unknown
+    private var lightContext = LightContext()
+    /// The brief is recomputed about once a second rather than on every
+    /// analysed frame: positional advice that rewrites itself eight times a
+    /// second is unreadable, and the underlying facts barely change that fast.
+    private var lastBriefAt: TimeInterval = 0
+    private let briefInterval: TimeInterval = 1.0
 
     /// Called when a photo has been saved, so the assignment can be retired.
     var onSaved: (() -> Void)?
@@ -99,8 +107,11 @@ final class CameraController: NSObject, ObservableObject {
         Haptics.shared.enabled = settings.hapticFeedback
     }
 
-    func setLightPhase(_ phase: LightPhase) {
-        lightPhase = phase
+    func setLightContext(_ context: LightContext) {
+        lightContext = context
+        // Recompute immediately: the sun moving into golden hour, or the
+        // compass settling, both change the advice straight away.
+        lastBriefAt = 0
     }
 
     /// Installs the framing contract from the active assignment. Pass `nil` to
@@ -311,6 +322,12 @@ final class CameraController: NSObject, ObservableObject {
         let now = CACurrentMediaTime()
         let (stable, changed) = stabilizer.update(with: state.directive, now: now)
 
+        var newBrief: SceneBrief?
+        if now - lastBriefAt >= briefInterval {
+            lastBriefAt = now
+            newBrief = advisor.brief(signals: signals, light: lightContext)
+        }
+
         var published = state
         published.directive = stable
 
@@ -332,6 +349,9 @@ final class CameraController: NSObject, ObservableObject {
         DispatchQueue.main.async {
             self.coaching = published
             self.directive = stable
+            if let newBrief, newBrief != self.brief {
+                self.brief = newBrief
+            }
 
             if becameReady {
                 Haptics.shared.lock()
@@ -414,10 +434,14 @@ final class CameraController: NSObject, ObservableObject {
 
         case .success(let data):
             editQueue.async {
-                let edited = self.editor.process(data: data,
+                var edited = self.editor.process(data: data,
                                                  signals: signals,
-                                                 lightPhase: self.lightPhase,
+                                                 lightPhase: self.lightContext.sun.phase,
                                                  settings: self.editSettings)
+                // Advice for the frame as it was actually shot, so the review
+                // sheet can say how to shoot it again.
+                edited.brief = self.advisor.brief(signals: signals,
+                                                  light: self.lightContext)
                 Task {
                     do {
                         try await self.saver.save(edited, albumName: self.albumName)

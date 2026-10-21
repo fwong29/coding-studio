@@ -22,6 +22,13 @@ final class AppSettings: ObservableObject {
     @Published var hapticFeedback: Bool { didSet { persist(hapticFeedback, Keys.hapticFeedback) } }
     @Published var useLocation: Bool { didSet { persist(useLocation, Keys.useLocation) } }
 
+    /// When true, the top panel hands out shots from the assignment library
+    /// instead of reading the scene in front of you. Off by default: reacting
+    /// to whatever you point at is the more useful behaviour, and being told
+    /// to go find a window portrait is not much help when you are stood in a
+    /// field.
+    @Published var useAssignments: Bool { didSet { persist(useAssignments, Keys.useAssignments) } }
+
     /// Apple's own `autoAdjustmentFilters` run before our scene-aware stack.
     /// Off by default: it is face-aware and decent, but it has no idea which
     /// kind of photo this is, and stacking it under our own tone work tends to
@@ -60,6 +67,7 @@ final class AppSettings: ObservableObject {
         showHorizon = bool(Keys.showHorizon, true)
         hapticFeedback = bool(Keys.hapticFeedback, true)
         useLocation = bool(Keys.useLocation, true)
+        useAssignments = bool(Keys.useAssignments, false)
         useAppleAutoEnhance = bool(Keys.useAppleAutoEnhance, false)
         albumName = store.string(forKey: Keys.albumName) ?? Defaults.albumName
     }
@@ -82,6 +90,7 @@ final class AppSettings: ObservableObject {
         static let showHorizon = "showHorizon"
         static let hapticFeedback = "hapticFeedback"
         static let useLocation = "useLocation"
+        static let useAssignments = "useAssignments"
         static let useAppleAutoEnhance = "useAppleAutoEnhance"
         static let albumName = "albumName"
     }

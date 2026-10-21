@@ -12,6 +12,7 @@ struct CameraScreen: View {
     @StateObject private var director: ShotDirector
 
     @State private var isCardExpanded = false
+    @State private var isAdviceExpanded = false
     @State private var showingSettings = false
     @State private var showingReview = false
     @State private var focusIndicator: CGPoint?
@@ -70,12 +71,13 @@ struct CameraScreen: View {
         .onChange(of: settings.keepOriginal) { _, _ in camera.applySettings(settings) }
         .onChange(of: settings.useAppleAutoEnhance) { _, _ in camera.applySettings(settings) }
         .onChange(of: settings.albumName) { _, _ in camera.applySettings(settings) }
-        // The active assignment reconfigures what the coach asks for.
+        // An assignment reconfigures what the coach asks for; in scene-reading
+        // mode the coach falls back to the defaults for whatever it sees.
         .onChange(of: director.current) { _, assignment in
-            camera.setAssignmentTarget(assignment?.framing)
+            camera.setAssignmentTarget(settings.useAssignments ? assignment?.framing : nil)
         }
-        .onChange(of: director.sun.phase) { _, phase in
-            camera.setLightPhase(phase)
+        .onChange(of: settings.useAssignments) { _, usingAssignments in
+            camera.setAssignmentTarget(usingAssignments ? director.current?.framing : nil)
         }
         // Feed the observed scene back so assignments match what you're
         // actually pointing at.
@@ -96,13 +98,26 @@ struct CameraScreen: View {
     // MARK: - Setup
 
     private func activate() {
-        camera.applySettings(settings)
-        camera.setLightPhase(director.sun.phase)
-        camera.setAssignmentTarget(director.current?.framing)
-        camera.onSaved = {
-            director.markCompleted()
+        // Bound to distinctly-named locals so the capture lists below are
+        // unambiguous, and so neither object ends up retaining the other
+        // through a copy of this view.
+        let controller = camera
+        let shotDirector = director
+
+        controller.applySettings(settings)
+        controller.setAssignmentTarget(settings.useAssignments ? shotDirector.current?.framing : nil)
+
+        // The director owns location and the compass, so it pushes the light
+        // context down rather than the controller reaching up for it.
+        shotDirector.onLightContextChange = { [weak controller] context in
+            controller?.setLightContext(context)
         }
-        camera.start()
+        controller.setLightContext(shotDirector.lightContext)
+
+        controller.onSaved = { [weak shotDirector] in
+            shotDirector?.markCompleted()
+        }
+        controller.start()
     }
 
     // MARK: - Layers
@@ -153,13 +168,19 @@ struct CameraScreen: View {
 
     private var chrome: some View {
         VStack(spacing: 0) {
-            AssignmentCard(assignment: director.current,
-                           lightSummary: director.lightSummary,
-                           sceneLabel: camera.coaching.sceneLabel,
-                           isExpanded: $isCardExpanded,
-                           onShuffle: { director.next() })
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
+            Group {
+                if settings.useAssignments {
+                    AssignmentCard(assignment: director.current,
+                                   lightSummary: director.lightSummary,
+                                   sceneLabel: camera.coaching.sceneLabel,
+                                   isExpanded: $isCardExpanded,
+                                   onShuffle: { director.next() })
+                } else {
+                    AdvicePanel(brief: camera.brief, isExpanded: $isAdviceExpanded)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
 
             Spacer(minLength: 0)
 

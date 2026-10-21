@@ -9,6 +9,14 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    Toggle("Hand me shots to go and find", isOn: $settings.useAssignments)
+                } header: {
+                    Text("Coaching")
+                } footer: {
+                    Text("Off, the panel reads whatever you point the camera at and tells you where to stand, how high to hold it and which way the light should come from. On, it hands you shots to go and find from a library of 24 instead.")
+                }
+
+                Section {
                     Toggle("Fire the shutter automatically", isOn: $settings.autoShutter)
                     Toggle("Speak the directions", isOn: $settings.spokenDirections)
                     Toggle("Haptic feedback", isOn: $settings.hapticFeedback)
